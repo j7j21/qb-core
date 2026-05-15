@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HUD Simulation - Restoration</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background: #1a1a1a;
+            font-family: 'Cairo', sans-serif;
+            color: white;
+        }
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 10;
+        }
+        .controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 20;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 8px 15px rgba(0,0,0,0.5);
+            border: 1px solid #333;
+            width: 220px;
+        }
+        .controls h2 {
+            margin-top: 0;
+            font-size: 18px;
+            color: #3498db;
+            text-align: center;
+            border-bottom: 1px solid #333;
+            padding-bottom: 10px;
+        }
+        .controls button {
+            background: #2c3e50;
+            color: white;
+            border: 1px solid #444;
+            padding: 10px;
+            margin: 8px 0;
+            border-radius: 6px;
+            cursor: pointer;
+            width: 100%;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+        .controls button:hover {
+            background: #34495e;
+            border-color: #3498db;
+        }
+        .controls button.active {
+            background: #3498db;
+            border-color: #fff;
+        }
+        .status-panel {
+            margin-top: 15px;
+            font-size: 12px;
+            color: #aaa;
+        }
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <h2>HUD SIMULATOR</h2>
+        <button id="carHudBtn" class="active">Mode: Car HUD</button>
+        <button id="simpleHudBtn">Mode: Simple HUD</button>
+        <button id="toggleSimBtn">Stop Simulation</button>
+        
+        <div class="status-panel">
+            <div class="status-item"><span>Speed:</span> <span id="stat-speed">0</span></div>
+            <div class="status-item"><span>RPM:</span> <span id="stat-rpm">0%</span></div>
+            <div class="status-item"><span>Gear:</span> <span id="stat-gear">1</span></div>
+            <div class="status-item"><span>Fuel:</span> <span id="stat-fuel">100%</span></div>
+        </div>
+    </div>
+
+    <!-- The HUD UI -->
+    <iframe id="hudFrame" src="index.html"></iframe>
+
+    <script>
+        const hudFrame = document.getElementById('hudFrame');
+        
+        // Simulation State
+        let isSimulating = true;
+        let simInterval = null;
+        let currentMode = "CarHud";
+        
+        let mockData = {
+            speed: 0,
+            rpm: 0.1,
+            gear: 1,
+            fuel: 85,
+            health: 100,
+            engine: 1000
+        };
+
+        function sendNuiMsg(data) {
+            if (hudFrame.contentWindow) {
+                hudFrame.contentWindow.postMessage(data, "*");
+            }
+        }
+
+        function updateStatsUI() {
+            document.getElementById('stat-speed').innerText = mockData.speed;
+            document.getElementById('stat-rpm').innerText = Math.floor(mockData.rpm * 100) + "%";
+            document.getElementById('stat-gear').innerText = mockData.gear === 0 ? "R" : mockData.gear;
+            document.getElementById('stat-fuel').innerText = mockData.fuel + "%";
+        }
+
+        function runTick() {
+            if (!isSimulating) return;
+
+            // Logic to simulate driving
+            mockData.rpm += 0.02;
+            mockData.speed += 2;
+
+            if (mockData.rpm > 0.9) {
+                mockData.rpm = 0.25;
+                mockData.gear++;
+                if (mockData.gear > 6) {
+                    mockData.gear = 1;
+                    mockData.speed = 20;
+                }
+            }
+
+            if (mockData.speed > 240) {
+                mockData.speed = 0;
+                mockData.gear = 1;
+            }
+
+            updateStatsUI();
+
+            if (currentMode === "CarHud") {
+                sendNuiMsg({
+                    action: true,
+                    type: "CarHud",
+                    voice: true,
+                    health: 100,
+                    armour: 50,
+                    food: 90,
+                    thirst: 80,
+                    stress: 0,
+                    stamina: 100,
+                    proxmity: "loud",
+                    breath: 1.0,
+                    area: "Los Santos Custom",
+                    fuel: mockData.fuel,
+                    enginerun: mockData.engine,
+                    vehspeed: mockData.speed,
+                    gear: mockData.gear,
+                    seatbelt: false,
+                    waydist: 1.2,
+                    directions: "Front",
+                    rpm: mockData.rpm
+                });
+            } else {
+                sendNuiMsg({
+                    action: true,
+                    type: "SimpleHud",
+                    voice: true,
+                    health: 100,
+                    armour: 50,
+                    food: 90,
+                    thirst: 80,
+                    stress: 0,
+                    stamina: 100,
+                    proxmity: "normal",
+                    breath: 1.0
+                });
+            }
+        }
+
+        function startSim() {
+            if (simInterval) clearInterval(simInterval);
+            simInterval = setInterval(runTick, 100);
+            isSimulating = true;
+            document.getElementById('toggleSimBtn').innerText = "Stop Simulation";
+        }
+
+        function stopSim() {
+            clearInterval(simInterval);
+            isSimulating = false;
+            document.getElementById('toggleSimBtn').innerText = "Start Simulation";
+        }
+
+        // Event Listeners
+        document.getElementById('toggleSimBtn').addEventListener('click', () => {
+            if (isSimulating) stopSim(); else startSim();
+        });
+
+        document.getElementById('carHudBtn').addEventListener('click', () => {
+            currentMode = "CarHud";
+            document.getElementById('carHudBtn').classList.add('active');
+            document.getElementById('simpleHudBtn').classList.remove('active');
+            startSim();
+        });
+
+        document.getElementById('simpleHudBtn').addEventListener('click', () => {
+            currentMode = "SimpleHud";
+            document.getElementById('simpleHudBtn').classList.add('active');
+            document.getElementById('carHudBtn').classList.remove('active');
+            startSim();
+        });
+
+        // Initialize once iframe loads
+        hudFrame.onload = () => {
+            startSim();
+        };
+
+    </script>
+</body>
+</html>
